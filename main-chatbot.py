@@ -102,7 +102,6 @@ def predict(message, history):
     return response['choices'][0]["message"]["content"]
 
 
-
 @app.route('/predict', methods=['POST'])
 def api_predict():
     try:
