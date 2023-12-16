@@ -17,13 +17,20 @@ from openai.embeddings_utils import get_embedding, cosine_similarity
 import tiktoken
 import base64
 import time
-from flask import Flask, request, jsonify
+from fastapi import FastAPI, HTTPException
+import uvicorn
+
+from pydantic import BaseModel
 import dotenv
 
-app = Flask(__name__)
+app = FastAPI()
 
+
+
+openai.api_key = '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' 
 
 def predict(message, history):
+    print(message)
     def image_to_base64(image_path):
         with open(image_path, "rb") as image_file:
             encoded_string = base64.b64encode(image_file.read()).decode()
@@ -48,7 +55,7 @@ def predict(message, history):
         for path in pdf_paths:
             loader = PyPDFLoader(path)
             pages = loader.load_and_split()
-            faiss_index = FAISS.from_documents(pages, OpenAIEmbeddings(openai_api_key=openai_api_key))
+            faiss_index = FAISS.from_documents(pages, OpenAIEmbeddings(openai_api_key=openai.api_key))
             docs = faiss_index.similarity_search(input_text, k=5)
             for doc in docs:
                 df.loc[len(df.index)] = doc.page_content
@@ -58,7 +65,7 @@ def predict(message, history):
         df['n_tokens'] = df["text"].apply(lambda x: len(tokenizer.encode(x)))
         df = df[df.n_tokens<8192]
 
-        embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
+        embeddings = OpenAIEmbeddings(openai_api_key=openai.api_key)
 
         df['ada_v2'] = df["text"].apply(lambda x : embeddings.embed_query(x))
 
@@ -72,7 +79,7 @@ def predict(message, history):
                 df.sort_values("similarities", ascending=False)
                 .head(3)
             )
-        
+
         top5_text = " \n ".join(res.text[:1].values)
 
         return top5_text
@@ -92,27 +99,14 @@ def predict(message, history):
 
     start_time = time.time()
     response = openai.ChatCompletion.create(
-        model='gpt-4-1106-preview',
+        model='gpt-4',
         messages= history_openai_format,
         temperature=0.1
     )
     end_time = time.time()
     execution_time = start_time - end_time
-
+    print(response['choices'][0]["message"]["content"])
     return response['choices'][0]["message"]["content"]
 
-
-@app.route('/predict', methods=['POST'])
-def api_predict():
-    try:
-        content = request.json
-        message = content['message']
-        history = content.get('history', [])
-        response = predict(message, history)
-        return jsonify({'response': response})
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-if __name__ == '__main__':
-    openai_api_key = os.getenv("OPENAI_API")
-    app.run(debug=True, host='0.0.0.0', port=3008)
+answer = predict("NFT คืออะไร",[])
+print("answer: ",answer)
